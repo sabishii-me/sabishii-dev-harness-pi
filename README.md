@@ -22,15 +22,15 @@ presets/               preset definitions (standard, heavy-review)
 ## How the hub uses this directory
 
 The hub never contains harness code. A deployment points it at a plugins directory
-(`PRTS_PLUGINS_DIR`, default `<hub>/plugins`); the hub scans it for directories with a
+(`AGENT_HUB_PLUGINS_DIR`, default `<hub>/plugins`); the hub scans it for directories with a
 `manifest.json`, and this directory *is* the plugin:
 
 | what | who reads it |
 | --- | --- |
 | `manifest.json` | the hub: id, `command`, the runtime pin, the extension ids, and the capabilities this adapter implements |
 | `pi-adapter.cjs` | the hub spawns it (`command`) and speaks `adapter-v1` with it |
-| `extensions/<id>/` | the hub copies the ids the manifest declares into that harness's own data dir and hands the adapter the path (`PRTS_INSTALLED_EXTENSIONS_DIR`); the adapter places them where its harness reads extensions |
-| `presets/` | the adapter, which lists them for `presets` and writes the chosen one where its harness-side extension reads it (`PRTS_PRESETS_DIR`) |
+| `extensions/<id>/` | the hub copies the ids the manifest declares into that harness's own data dir and hands the adapter the path (`AGENT_HUB_INSTALLED_EXTENSIONS_DIR`); the adapter places them where its harness reads extensions |
+| `presets/` | the adapter, which lists them for `presets` and writes the chosen one where its harness-side extension reads it (`AGENT_HUB_PRESETS_DIR`) |
 | `runtime/` | the harness itself — an official npm release, **never committed** (`.gitignore`) |
 
 The runtime is materialised from the manifest's pin — by THIS ADAPTER, through its

@@ -27,19 +27,19 @@ const path = require('path');
 // happened to spawn the adapter from.
 const PLUGIN_DIR = __dirname;
 
-// The core hands each agent a scratch dir via PRTS_AGENT_DATA_DIR; session
+// The core hands each agent a scratch dir via AGENT_HUB_HARNESS_DIR; session
 // records go there and nowhere else. No fallback: runtime data must never
 // land next to the plugin code (which may live in a watched source tree).
 // Without the variable the adapter refuses to open sessions (fail closed).
-const SESSIONS_DIR = process.env.PRTS_AGENT_DATA_DIR
-  ? path.join(process.env.PRTS_AGENT_DATA_DIR, 'sessions')
+const SESSIONS_DIR = process.env.AGENT_HUB_HARNESS_DIR
+  ? path.join(process.env.AGENT_HUB_HARNESS_DIR, 'sessions')
   : null;
 
 // --- core-surface transcript (PROTOCOL §2): adapter-owned history truth ---
 // Keyed by session ref; ids are ours and stable across restart/resume. The
 // harness's own session file is NOT the history source — this file is.
-const TRANSCRIPT_DIR = process.env.PRTS_AGENT_DATA_DIR
-  ? path.join(process.env.PRTS_AGENT_DATA_DIR, 'transcripts')
+const TRANSCRIPT_DIR = process.env.AGENT_HUB_HARNESS_DIR
+  ? path.join(process.env.AGENT_HUB_HARNESS_DIR, 'transcripts')
   : null;
 let currentRef = null;
 let liveMessage = null; // { id, text } while an assistant message streams
@@ -55,19 +55,19 @@ let granted = null;
 // agent-presets extension into the workspace and (b) writes the definition the
 // extension reads. Ids are opaque to the consumer; content never crosses the
 // wire.
-const PRESETS_DIR = process.env.PRTS_PRESETS_DIR || null;
+const PRESETS_DIR = process.env.AGENT_HUB_PRESETS_DIR || null;
 // Extra roots the caller asked for (ACP calls these additionalDirectories). The
 // core passes them through; pi has no CLI surface for additional roots, so they
 // are recorded and reported rather than silently dropped.
-const ADDITIONAL_DIRS = JSON.parse(process.env.PRTS_ADDITIONAL_DIRS || '[]');   // extra roots the core passed through
+const ADDITIONAL_DIRS = JSON.parse(process.env.AGENT_HUB_ADDITIONAL_DIRS || '[]');   // extra roots the core passed through
 // The hub installed this harness's extensions: it selected them from its
 // registry and wrote them into this harness's data dir. The adapter places from
 // there into the layout the harness reads — it never decides what to install, so
 // adding an extension to a harness is a registry change, not a code change here.
 // Which directory name an extension takes in the workspace is the harness's own
 // rule, so that mapping lives here.
-const INSTALLED_EXT_DIR = process.env.PRTS_INSTALLED_EXTENSIONS_DIR || null;
-const EXT_DEST = { 'agent-presets': 'agent-presets', plan: 'prts-plan' };
+const INSTALLED_EXT_DIR = process.env.AGENT_HUB_INSTALLED_EXTENSIONS_DIR || null;
+const EXT_DEST = { 'agent-presets': 'agent-presets', plan: 'hub-plan' };
 function copyTree(src, dst) {
   fs.mkdirSync(dst, { recursive: true });
   for (const name of fs.readdirSync(src)) {
@@ -192,7 +192,7 @@ function readReviewState(cb) {
   piRequest({ type: 'get_entries' })
     .then((r) => {
       const entries = (r && r.data && Array.isArray(r.data.entries)) ? r.data.entries : [];
-      const last = entries.filter((e) => e && e.customType === 'prts-review/state').pop();
+      const last = entries.filter((e) => e && e.customType === 'hub-review/state').pop();
       cb(last && last.data && typeof last.data.asking === 'boolean' ? last.data.asking : null);
     })
     .catch(() => cb(null));
@@ -261,11 +261,11 @@ function die(message) {
 // plugin owns its runtime, which is why a relative path means "next to this
 // adapter" rather than "anywhere on the machine".
 function resolvePi() {
-  const raw = process.env.PRTS_RUNTIME_COMMAND;
-  if (!raw) die('the host did not declare a runtime for this plugin (PRTS_RUNTIME_COMMAND missing)');
+  const raw = process.env.AGENT_HUB_RUNTIME_COMMAND;
+  if (!raw) die('the host did not declare a runtime for this plugin (AGENT_HUB_RUNTIME_COMMAND missing)');
   let argv;
-  try { argv = JSON.parse(raw); } catch { die('PRTS_RUNTIME_COMMAND is not valid JSON'); }
-  if (!Array.isArray(argv) || !argv.length) die('PRTS_RUNTIME_COMMAND must be a non-empty argv array');
+  try { argv = JSON.parse(raw); } catch { die('AGENT_HUB_RUNTIME_COMMAND is not valid JSON'); }
+  if (!Array.isArray(argv) || !argv.length) die('AGENT_HUB_RUNTIME_COMMAND must be a non-empty argv array');
   const [cmd, ...args] = argv;
   // cmd may be a bare executable name (resolved through PATH by spawn), so only
   // a path-looking cmd is checked. Every argument is resolved against the
@@ -344,12 +344,12 @@ let injectedModels = [];
 // resolves it; this adapter translates the result into pi's own spelling.
 let injectedFacts = [];
 function modelDecl(id) { return injectedFacts.find((m) => m && m.id === id) || null; }
-// A provider the core injects is named the same in every harness: `prts-<id>`.
+// A provider the core injects is named the same in every harness: `hub-<id>`.
 // The slash an earlier version used is not usable here — pi splits a model
 // reference on the FIRST slash, so a provider id containing one resolves to the
 // wrong model — and a name that differs per harness would leave a caller unable
 // to tell which provider a catalog entry belongs to. One spelling, no slash.
-const INJECT_PREFIX = 'prts-';
+const INJECT_PREFIX = 'hub-';
 
 function probeModels(url, value) {
   return new Promise((resolve, reject) => {
@@ -432,7 +432,7 @@ function applyInjectedProvider(dir, modelIds) {
 
 function startPi(resumeRef) {
   if (!SESSIONS_DIR) {
-    die('PRTS_AGENT_DATA_DIR not set: the core must provide a data dir; refusing to write runtime data next to plugin code');
+    die('AGENT_HUB_HARNESS_DIR not set: the core must provide a data dir; refusing to write runtime data next to plugin code');
   }
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   const ref = resumeRef || path.join(SESSIONS_DIR, `session-${Date.now()}-${process.pid}.jsonl`);
@@ -445,12 +445,12 @@ function startPi(resumeRef) {
   // `--no-skills` turns OFF pi's own discovery, so a managed session sees exactly what
   // the hub installed — not the user's ~/.agents/skills (isolation) — and `--skill`
   // adds the hub's directory back (it is additive even with --no-skills).
-  if (process.env.PRTS_INSTALLED_SKILLS_DIR) args.push('--no-skills', '--skill', process.env.PRTS_INSTALLED_SKILLS_DIR);
+  if (process.env.AGENT_HUB_INSTALLED_SKILLS_DIR) args.push('--no-skills', '--skill', process.env.AGENT_HUB_INSTALLED_SKILLS_DIR);
   const env = { ...process.env };
   // A session preset: ensure the agent-presets extension is installed in the
   // workspace and hand the extension the definition file it reads.
   if (activePresetId !== null) {
-    const wcwd = process.env.PRTS_CWD || undefined;
+    const wcwd = process.env.AGENT_HUB_CWD || undefined;
     if (wcwd) {
       installAgentPresetsExt(wcwd);
       env.AGENT_PRESETS_CONFIG = writeActivePreset(wcwd, activePresetId);
@@ -458,17 +458,17 @@ function startPi(resumeRef) {
   }
   // Plan mode's extension travels with the session's workspace too, so a
   // `/plan` from the core has something to run against.
-  if (process.env.PRTS_CWD) installPlanExt(process.env.PRTS_CWD);
+  if (process.env.AGENT_HUB_CWD) installPlanExt(process.env.AGENT_HUB_CWD);
   // J-2: inject the hub-managed provider into a private agent dir.
   if (granted && granted.url && granted.value) {
-    if (!injectedEnvName) injectedEnvName = 'PRTS_INJECTED_' + String(granted.connectionId || 'PROVIDER').replace(/[^A-Za-z0-9]/g, '_').toUpperCase() + '_API_KEY';
+    if (!injectedEnvName) injectedEnvName = 'AGENT_HUB_INJECTED_' + String(granted.connectionId || 'PROVIDER').replace(/[^A-Za-z0-9]/g, '_').toUpperCase() + '_API_KEY';
     env[injectedEnvName] = granted.value;
     injectedDir = injectedDir || buildInjectedDir();
     env.PI_CODING_AGENT_DIR = injectedDir;
   }
-  // The core hands the user project dir via PRTS_CWD; run pi there so its
+  // The core hands the user project dir via AGENT_HUB_CWD; run pi there so its
   // file/command tools act on the user's project, not the plugin directory.
-  const cwd = process.env.PRTS_CWD || undefined;
+  const cwd = process.env.AGENT_HUB_CWD || undefined;
   harnessUp = null; harnessUpResolve = null;   // a new child is a new readiness question
   pi = spawn(piRuntime.cmd, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'inherit'], env, ...(cwd ? { cwd } : {}) });
   // pi's stderr is inherited from this adapter, so the core logs it; nothing
@@ -503,7 +503,7 @@ function startPi(resumeRef) {
 
 function piRequest(body) {
   return new Promise((resolve) => {
-    const id = `prts-${nextBusId++}`;
+    const id = `hub-${nextBusId++}`;
     body.id = id;
     pendingPi.set(id, resolve);
     pi.stdin.write(JSON.stringify(body) + '\n');
@@ -967,7 +967,7 @@ function handleBusMessage(msg) {
       injectedDir = null;
       injectedModels = [];
       if (granted.url && granted.value) {
-        injectedEnvName = 'PRTS_INJECTED_' + String(granted.connectionId || 'PROVIDER').replace(/[^A-Za-z0-9]/g, '_').toUpperCase() + '_API_KEY';
+        injectedEnvName = 'AGENT_HUB_INJECTED_' + String(granted.connectionId || 'PROVIDER').replace(/[^A-Za-z0-9]/g, '_').toUpperCase() + '_API_KEY';
         injectedDir = buildInjectedDir();
         probeModels(granted.url, granted.value).then((models) => {
           injectedModels = models;
@@ -1072,7 +1072,7 @@ function handleBusMessage(msg) {
         // Make the named preset the session's composition: install the
         // agent-presets extension into the workspace and write the definition
         // it reads. The next pi spawn picks both up.
-        const cwd = process.env.PRTS_CWD;
+        const cwd = process.env.AGENT_HUB_CWD;
         const known = listShippedPresets().some((p) => p.id === presetId);
         if (presetId && !known) {
           reply({ jsonrpc: '2.0', id, error: { code: -32000, message: 'unknown preset: ' + presetId } });
@@ -1129,7 +1129,7 @@ function handleBusMessage(msg) {
         // Plan mode is a session-scoped capability, not a composition: toggle it
         // through the extension's own command and read the state back from the
         // log it writes. No restart — the harness owns the state from here.
-        const cwd = process.env.PRTS_CWD;
+        const cwd = process.env.AGENT_HUB_CWD;
         if (cwd) installPlanExt(cwd);
         pendingCount += 1;
         planCommand(plan === true, (state) => {
@@ -1142,7 +1142,7 @@ function handleBusMessage(msg) {
         // The review switch is the preset extension's own state. Drive its
         // command and read the log back; like plan, it must be installed so a
         // mid-session switch has something to run against.
-        const cwd = process.env.PRTS_CWD;
+        const cwd = process.env.AGENT_HUB_CWD;
         if (cwd) installAgentPresetsExt(cwd);
         pendingCount += 1;
         reviewCommand(review === true, (state) => {
@@ -1558,7 +1558,7 @@ function scanModels() {
 // core hands over what it owns when it asks for this catalog, and those models
 // are reported as part of the answer: what this harness can run right now, in
 // one list, with no second catalog for a caller to merge. The provider is named
-// `prts-<id>` here exactly as it is in every other harness, so a catalog entry
+// `hub-<id>` here exactly as it is in every other harness, so a catalog entry
 // means the same thing whichever harness answered.
 function managedModels(providers) {
   const out = {};

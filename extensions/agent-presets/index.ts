@@ -58,7 +58,7 @@ export default function agentPresets(pi) {
   // allow-list still applies — that is the preset, not the review), and
   // `/review on` asks again. The switch is per session and lives in the log.
   const review = { on: preset.approve === true };
-  const FIELD = "prts-review/state";
+  const FIELD = "hub-review/state";
 
   if (allowed || preset.approve) {
     pi.on("tool_call", async (event, ctx) => {

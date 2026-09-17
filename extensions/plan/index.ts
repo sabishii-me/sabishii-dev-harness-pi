@@ -49,7 +49,7 @@ const PLAN_SECTION = [
 
 const STATE_ENTRY = "plan/mode";
 
-export default function prtsPlan(pi) {
+export default function hubPlan(pi) {
   const enabled = { value: false };
   let toolsBeforePlanMode = undefined;
 
@@ -136,7 +136,7 @@ export default function prtsPlan(pi) {
   // edits the guard would refuse.
   pi.on("before_agent_start", async () => {
     if (!enabled.value) return undefined;
-    return { message: { customType: "prts-plan", content: PLAN_SECTION } };
+    return { message: { customType: "hub-plan", content: PLAN_SECTION } };
   });
 
   // The way out of plan mode: the model presents the finished plan for review.

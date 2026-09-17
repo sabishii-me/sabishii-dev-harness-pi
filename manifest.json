@@ -1,0 +1,31 @@
+{
+  "id": "pi",
+  "protocol": 0,
+  "command": [
+    "node",
+    "pi-adapter.cjs"
+  ],
+  "runtime": {
+    "package": "@earendil-works/pi-coding-agent",
+    "version": "0.85.1",
+    "command": [
+      "node",
+      "runtime/dist/cli.js"
+    ]
+  },
+  "extensions": [
+    "agent-presets",
+    "plan"
+  ],
+  "capabilities": [
+    "models",
+    "presets",
+    "plan",
+    "review",
+    "fork",
+    "stats",
+    "compact",
+    "rename",
+    "skills"
+  ]
+}

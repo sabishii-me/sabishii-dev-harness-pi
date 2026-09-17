@@ -1,0 +1,6 @@
+{
+  "id": "standard",
+  "name": "Standard",
+  "description": "A full coding agent: file editing, shell, and file/web search. Runs tools without asking.",
+  "tools": []
+}
